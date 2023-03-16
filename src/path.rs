@@ -11,7 +11,7 @@ impl<T> Trie<T> {
     fn key<P: AsRef<Path>>(&self, key: &P) -> String {
         let mut p = normalize_path(key.as_ref().to_string_lossy());
 
-        if p.ends_with('/') {
+        if !p.ends_with('/') {
             p.push('/');
         }
 
