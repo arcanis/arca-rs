@@ -2,7 +2,7 @@ use path_slash::PathBufExt;
 use std::{path::{PathBuf, Path}};
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Trie<T> {
     inner: radix_trie::Trie<String, T>,
 }
@@ -24,6 +24,10 @@ impl<T> Trie<T> {
 
     pub fn get_mut<P: AsRef<Path>>(&mut self, key: &P) -> Option<&mut T> {
         self.inner.get_mut(&self.key(&key))
+    }
+
+    pub fn get_ancestor_value<P: AsRef<Path>>(&self, key: &P) -> Option<&T> {
+        self.inner.get_ancestor_value(&self.key(&key))
     }
 
     pub fn insert<P: AsRef<Path>>(&mut self, key: &P, value: T) -> Option<T> {
