@@ -1,5 +1,5 @@
 [package]
-name = "arca-rs"
+name = "arca"
 version = "0.1.0"
 edition = "2021"
 
