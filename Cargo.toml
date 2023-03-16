@@ -2,8 +2,9 @@
 name = "arca"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT"
+description = "Various utilities used in my crates"
+repository = "https://github.com/arcanis/arca-rs.git"
 
 [dependencies]
 clean-path = "0.2.1"
