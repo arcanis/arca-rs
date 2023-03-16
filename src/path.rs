@@ -1,6 +1,8 @@
 use path_slash::PathBufExt;
 use std::{path::{PathBuf, Path}};
 
+
+#[derive(Debug, Clone)]
 pub struct Trie<T> {
     inner: radix_trie::Trie<String, T>,
 }
