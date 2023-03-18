@@ -1,4 +1,5 @@
 use path_slash::PathBufExt;
+use radix_trie::TrieCommon;
 use std::{path::{PathBuf, Path}};
 
 
@@ -24,6 +25,14 @@ impl<T> Trie<T> {
 
     pub fn get_mut<P: AsRef<Path>>(&mut self, key: &P) -> Option<&mut T> {
         self.inner.get_mut(&self.key(&key))
+    }
+
+    pub fn get_ancestor_key<P: AsRef<Path>>(&self, key: &P) -> Option<&String> {
+        self.inner.get_ancestor(&self.key(&key)).and_then(|e| e.key())
+    }
+
+    pub fn get_ancestor_path<P: AsRef<Path>>(&self, key: &P) -> Option<PathBuf> {
+        self.get_ancestor_key(&key).map(|k| PathBuf::from(k))
     }
 
     pub fn get_ancestor_value<P: AsRef<Path>>(&self, key: &P) -> Option<&T> {
