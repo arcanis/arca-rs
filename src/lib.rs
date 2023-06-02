@@ -14,10 +14,34 @@ impl Path {
         Path::from("")
     }
 
+    pub fn dirname<'a>(&'a self) -> Path {
+        let mut slice_len = self.path.len();
+        if self.path.ends_with('/') {
+            if self.path.len() > 1 {
+                slice_len -= 1;
+            } else {
+                return Path::from("/");
+            }
+        }
+
+        let slice = &self.path[..slice_len];
+        if let Some(last_slash) = slice.rfind('/') {
+            Path::from(&slice[..last_slash])
+        } else {
+            Path::new()
+        }
+    }
+
     pub fn basename<'a>(&'a self) -> Option<&'a str> {
-        if let Some(last_slash) = self.path.rfind('/') {
+        let mut slice_len = self.path.len();
+        if self.path.ends_with('/') {
+            slice_len -= 1;
+        }
+
+        let slice = &self.path[..slice_len];
+        if let Some(last_slash) = slice.rfind('/') {
             if last_slash != self.path.len() - 1 {
-                Some(&self.path[last_slash + 1..])
+                Some(&slice[last_slash + 1..])
             } else {
                 None
             }
@@ -70,6 +94,15 @@ impl Path {
         copy
     }
 
+    pub fn join_str<T>(&self, other: T) -> Path
+    where
+        T: AsRef<str>,
+    {
+        let mut copy = self.clone();
+        copy.go_to(&Path::from(other.as_ref()));
+        copy
+    }
+
     pub fn go_to(&mut self, other: &Path) {
         if other.path.starts_with('/') {
             self.path = other.path.clone();
@@ -80,6 +113,13 @@ impl Path {
             self.path.push_str(&other.path);
             self.normalize()
         }
+    }
+
+    pub fn go_to_str<T>(&mut self, other: T)
+    where
+        T: AsRef<str>,
+    {
+        self.go_to(&Path::from(other.as_ref()));
     }
 
     pub fn relative_to(&self, other: &Path) -> Path {
@@ -383,6 +423,36 @@ mod tests {
     }
 
     #[test]
+    fn test_dirname_with_extension() {
+        let path = Path { path: "/usr/local/bin/test.txt".to_string() };
+        assert_eq!(path.dirname(), Path::from("/usr/local/bin"));
+    }
+
+    #[test]
+    fn test_dirname_without_extension() {
+        let path = Path { path: "/usr/local/bin/test".to_string() };
+        assert_eq!(path.dirname(), Path::from("/usr/local/bin"));
+    }
+
+    #[test]
+    fn test_dirname_with_trailing_slash() {
+        let path = Path { path: "/usr/local/bin/".to_string() };
+        assert_eq!(path.dirname(), Path::from("/usr/local"));
+    }
+
+    #[test]
+    fn test_dirname_with_single_slash() {
+        let path = Path { path: "/".to_string() };
+        assert_eq!(path.dirname(), Path::from("/"));
+    }
+
+    #[test]
+    fn test_dirname_with_empty_string() {
+        let path = Path { path: "".to_string() };
+        assert_eq!(path.dirname(), Path::from(""));
+    }
+
+    #[test]
     fn test_basename_with_extension() {
         let path = Path { path: "/usr/local/bin/test.txt".to_string() };
         assert_eq!(path.basename(), Some("test.txt"));
@@ -397,7 +467,7 @@ mod tests {
     #[test]
     fn test_basename_with_trailing_slash() {
         let path = Path { path: "/usr/local/bin/".to_string() };
-        assert_eq!(path.basename(), None);
+        assert_eq!(path.basename(), Some("bin"));
     }
 
     #[test]
