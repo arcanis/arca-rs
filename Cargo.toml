@@ -1,6 +1,6 @@
 [package]
 name = "arca"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 description = "Various utilities used in my crates"
@@ -8,5 +8,9 @@ repository = "https://github.com/arcanis/arca-rs.git"
 
 [dependencies]
 clean-path = "0.2.1"
+napi = { version = "2.13.1", default-features = false, features = [], optional = true }
 path-slash = "0.2.1"
 radix_trie = "0.2.1"
+
+[features]
+napi = ["dep:napi"]
