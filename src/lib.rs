@@ -5,6 +5,8 @@ use radix_trie::TrieCommon;
 pub mod path;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde_derive::Serialize, serde_derive::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Path {
     path: String,
 }
@@ -588,5 +590,16 @@ mod tests {
 
         let ancestor_path = Path::from("/path/to/item/child");
         assert_eq!(trie.get_ancestor_value(&ancestor_path).unwrap(), item);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_serde_serialization() {
+        let path = Path::from("/usr/local/bin/test.txt");
+        let serialized = serde_json::to_string(&path).unwrap();
+        assert_eq!(serialized, "\"/usr/local/bin/test.txt\"");
+
+        let deserialized: Path = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(path, deserialized);
     }
 }
