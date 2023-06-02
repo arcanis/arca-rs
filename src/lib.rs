@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Formatter};
 
+use radix_trie::TrieCommon;
+
 pub mod path;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -10,6 +12,32 @@ pub struct Path {
 impl Path {
     pub fn new() -> Self {
         Path::from("")
+    }
+
+    pub fn basename<'a>(&'a self) -> Option<&'a str> {
+        if let Some(last_slash) = self.path.rfind('/') {
+            if last_slash != self.path.len() - 1 {
+                Some(&self.path[last_slash + 1..])
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn extname<'a>(&'a self) -> Option<&'a str> {
+        self.basename().and_then(|basename| {
+            if let Some(last_dot) = basename.rfind('.') {
+                if last_dot != 0 {
+                    Some(&basename[last_dot..])
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
     }
 
     pub fn as_str<'a>(&'a self) -> &'a str {
@@ -228,6 +256,63 @@ fn resolve_path(input: &str) -> String {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct Trie<T> {
+    inner: radix_trie::Trie<String, (Path, T)>,
+}
+
+impl<T> Trie<T> {
+    fn key(&self, key: &Path) -> String {
+        let mut p = key.to_string();
+
+        if !p.ends_with('/') {
+            p.push('/');
+        }
+
+        p
+    }
+
+    pub fn get(&self, key: &Path) -> Option<&T> {
+        self.inner.get(&self.key(&key)).map(|t| &t.1)
+    }
+
+    pub fn get_mut(&mut self, key: &Path) -> Option<&mut T> {
+        self.inner.get_mut(&self.key(&key)).map(|t| &mut t.1)
+    }
+
+    pub fn get_ancestor_record(&self, key: &Path) -> Option<(&String, &Path, &T)> {
+        self.inner.get_ancestor(&self.key(&key)).map(|e| {
+            let k = e.key().unwrap();
+            let v = e.value().unwrap();
+
+            (k, &v.0, &v.1)
+        })
+    }
+
+    pub fn get_ancestor_key(&self, key: &Path) -> Option<&String> {
+        self.inner.get_ancestor(&self.key(&key)).and_then(|e| e.key())
+    }
+
+    pub fn get_ancestor_path(&self, key: &Path) -> Option<&Path> {
+        self.inner.get_ancestor_value(&self.key(&key)).map(|t| &t.0)
+    }
+
+    pub fn get_ancestor_value(&self, key: &Path) -> Option<&T> {
+        self.inner.get_ancestor_value(&self.key(&key)).map(|t| &t.1)
+    }
+
+    pub fn insert(&mut self, key: Path, value: T) -> () {
+        let k = self.key(&key);
+        let p = Path::from(k.clone());
+
+        self.inner.insert(k, (p, value)).map(|t| t.1);
+    }
+
+    pub fn remove(&mut self, key: &Path) -> () {
+        self.inner.remove(&self.key(&key));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,5 +380,143 @@ mod tests {
         let path1 = Path { path: "/home/user/docs".to_string() };
         let path2 = Path { path: "var/log".to_string() };
         path1.relative_to(&path2);
+    }
+
+    #[test]
+    fn test_basename_with_extension() {
+        let path = Path { path: "/usr/local/bin/test.txt".to_string() };
+        assert_eq!(path.basename(), Some("test.txt"));
+    }
+
+    #[test]
+    fn test_basename_without_extension() {
+        let path = Path { path: "/usr/local/bin/test".to_string() };
+        assert_eq!(path.basename(), Some("test"));
+    }
+
+    #[test]
+    fn test_basename_with_trailing_slash() {
+        let path = Path { path: "/usr/local/bin/".to_string() };
+        assert_eq!(path.basename(), None);
+    }
+
+    #[test]
+    fn test_basename_with_single_slash() {
+        let path = Path { path: "/".to_string() };
+        assert_eq!(path.basename(), None);
+    }
+
+    #[test]
+    fn test_basename_with_empty_string() {
+        let path = Path { path: "".to_string() };
+        assert_eq!(path.basename(), None);
+    }
+
+    #[test]
+    fn test_extname_with_extension() {
+        let path = Path { path: "/usr/local/bin/test.txt".to_string() };
+        assert_eq!(path.extname(), Some(".txt"));
+    }
+
+    #[test]
+    fn test_extname_with_double_extension() {
+        let path = Path { path: "/usr/local/bin/test.foo.txt".to_string() };
+        assert_eq!(path.extname(), Some(".txt"));
+    }
+
+    #[test]
+    fn test_extname_without_extension() {
+        let path = Path { path: "/usr/local/bin/test".to_string() };
+        assert_eq!(path.extname(), None);
+    }
+
+    #[test]
+    fn test_extname_with_trailing_slash() {
+        let path = Path { path: "/usr/local/bin/.htaccess".to_string() };
+        assert_eq!(path.extname(), None);
+    }
+
+    #[test]
+    fn test_extname_with_single_slash() {
+        let path = Path { path: "/".to_string() };
+        assert_eq!(path.extname(), None);
+    }
+
+    #[test]
+    fn test_extname_with_empty_string() {
+        let path = Path { path: "".to_string() };
+        assert_eq!(path.extname(), None);
+    }
+
+    #[test]
+    fn test_trie_insert() {
+        let mut trie = Trie::default();
+        let path = Path::from("/path/to/item/");
+        let item = "item";
+
+        trie.insert(path.clone(), item.to_string());
+
+        assert_eq!(trie.get(&path).unwrap(), item);
+    }
+
+    #[test]
+    fn test_trie_remove() {
+        let mut trie = Trie::default();
+        let path = Path::from("/path/to/item/");
+        let item = "item";
+
+        trie.insert(path.clone(), item.to_string());
+        assert_eq!(trie.get(&path).unwrap(), item);
+
+        trie.remove(&path);
+        assert_eq!(trie.get(&path), None);
+    }
+
+    #[test]
+    fn test_get_ancestor_record() {
+        let mut trie = Trie::default();
+        let path = Path::from("/path/to/item/");
+        let item = "item";
+
+        trie.insert(path.clone(), item.to_string());
+
+        let ancestor_path = Path::from("/path/to/item/child");
+        assert_eq!(trie.get_ancestor_record(&ancestor_path).unwrap().2, item);
+    }
+
+    #[test]
+    fn test_get_ancestor_key() {
+        let mut trie = Trie::default();
+        let path = Path::from("/path/to/item/");
+        let item = "item";
+
+        trie.insert(path.clone(), item.to_string());
+
+        let ancestor_path = Path::from("/path/to/item/child");
+        assert_eq!(trie.get_ancestor_key(&ancestor_path).unwrap(), "/path/to/item/");
+    }
+
+    #[test]
+    fn test_get_ancestor_path() {
+        let mut trie = Trie::default();
+        let path = Path::from("/path/to/item/");
+        let item = "item";
+
+        trie.insert(path.clone(), item.to_string());
+
+        let ancestor_path = Path::from("/path/to/item/child");
+        assert_eq!(trie.get_ancestor_path(&ancestor_path).unwrap(), &path);
+    }
+
+    #[test]
+    fn test_get_ancestor_value() {
+        let mut trie = Trie::default();
+        let path = Path::from("/path/to/item/");
+        let item = "item";
+
+        trie.insert(path.clone(), item.to_string());
+
+        let ancestor_path = Path::from("/path/to/item/child");
+        assert_eq!(trie.get_ancestor_value(&ancestor_path).unwrap(), item);
     }
 }
