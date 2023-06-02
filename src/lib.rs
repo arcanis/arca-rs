@@ -127,8 +127,8 @@ impl Path {
     pub fn relative_to(&self, other: &Path) -> Path {
         assert!(self.is_absolute() && other.is_absolute());
 
-        let self_components: Vec<&str> = self.path.trim_start_matches('/').split('/').collect();
-        let other_components: Vec<&str> = other.path.trim_start_matches('/').split('/').collect();
+        let self_components: Vec<&str> = self.path.trim_matches('/').split('/').collect();
+        let other_components: Vec<&str> = other.path.trim_matches('/').split('/').collect();
 
         let common_prefix_length = self_components.iter()
             .zip(other_components.iter())
@@ -391,6 +391,13 @@ mod tests {
     #[test]
     fn test_subdirectory() {
         let path1 = Path { path: "/home/user/docs".to_string() };
+        let path2 = Path { path: "/home/user/docs/reports".to_string() };
+        assert_eq!(path1.relative_to(&path2), Path::from("reports"));
+    }
+
+    #[test]
+    fn test_subdirectory_trailing_slash() {
+        let path1 = Path { path: "/home/user/docs/".to_string() };
         let path2 = Path { path: "/home/user/docs/reports".to_string() };
         assert_eq!(path1.relative_to(&path2), Path::from("reports"));
     }
