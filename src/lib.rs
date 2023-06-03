@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+use std::{fs, io};
 
 use radix_trie::TrieCommon;
 
@@ -35,18 +36,21 @@ impl Path {
     }
 
     pub fn basename<'a>(&'a self) -> Option<&'a str> {
-        let mut slice_len = self.path.len();
-        if self.path.ends_with('/') {
-            slice_len -= 1;
-        }
+        let has_trailing_slash = self.path.ends_with('/');
 
-        let slice = &self.path[..slice_len];
-        if let Some(last_slash) = slice.rfind('/') {
-            if last_slash != self.path.len() - 1 {
-                Some(&slice[last_slash + 1..])
-            } else {
-                None
-            }
+        let initial_slice = if has_trailing_slash {
+            &self.path[..self.path.len() - 1]
+        } else {
+            &self.path
+        };
+
+        let first_basename_char = initial_slice
+            .rfind('/')
+            .map(|i| i + 1)
+            .unwrap_or(0);
+
+        if first_basename_char < initial_slice.len() {
+            Some(&initial_slice[first_basename_char..])
         } else {
             None
         }
@@ -54,7 +58,11 @@ impl Path {
 
     pub fn extname<'a>(&'a self) -> Option<&'a str> {
         self.basename().and_then(|basename| {
-            if let Some(last_dot) = basename.rfind('.') {
+            if let Some(mut last_dot) = basename.rfind('.') {
+                if last_dot > 2 && &basename[last_dot - 2..] == ".d.ts" {
+                    last_dot -= 2;
+                }
+
                 if last_dot != 0 {
                     Some(&basename[last_dot..])
                 } else {
@@ -86,26 +94,93 @@ impl Path {
         !self.is_absolute()
     }
 
+    pub fn is_forward(&self) -> bool {
+        self.is_relative() && !self.is_extern()
+    }
+
     pub fn is_extern(&self) -> bool {
         self.path.starts_with("../") || self.path == ".."
     }
 
-    pub fn join(&self, other: &Path) -> Path {
+    pub fn fs_metadata(&self) -> io::Result<fs::Metadata> {
+        fs::metadata(&self.path)
+    }
+
+    pub fn fs_exists(&self) -> bool {
+        self.fs_metadata().is_ok()
+    }
+
+    pub fn fs_is_file(&self) -> bool {
+        self.fs_metadata().map(|m| m.is_file()).unwrap_or(false)
+    }
+
+    pub fn fs_is_dir(&self) -> bool {
+        self.fs_metadata().map(|m| m.is_dir()).unwrap_or(false)
+    }
+
+    pub fn without_ext(&self) -> Path {
+        self.with_ext("")
+    }
+
+    pub fn with_ext(&self, ext: &str) -> Path {
         let mut copy = self.clone();
-        copy.go_to(other);
+        copy.set_ext(ext);
         copy
     }
 
-    pub fn join_str<T>(&self, other: T) -> Path
+    pub fn set_ext(&mut self, ext: &str) {
+        let has_trailing_slash = self.path.ends_with('/');
+
+        let initial_slice = if has_trailing_slash {
+            &self.path[..self.path.len() - 1]
+        } else {
+            &self.path
+        };
+
+        let first_basename_char = initial_slice
+            .rfind('/')
+            .map(|i| i + 1)
+            .unwrap_or(0);
+
+        let mut ext_char = self.path[first_basename_char..]
+            .rfind('.')
+            .map(|i| i + first_basename_char)
+            .unwrap_or(initial_slice.len());
+
+        if ext_char == first_basename_char {
+            ext_char = self.path.len();
+        }
+
+        if ext_char > 2 && &self.path[ext_char - 2..] == ".d.ts" {
+            ext_char -= 2;
+        }
+
+        let mut copy = self.path[..ext_char].to_string();
+        copy.push_str(ext);
+
+        if has_trailing_slash {
+            copy.push('/');
+        }
+
+        self.path = copy;
+    }
+
+    pub fn with_join(&self, other: &Path) -> Path {
+        let mut copy = self.clone();
+        copy.join(other);
+        copy
+    }
+
+    pub fn with_join_str<T>(&self, other: T) -> Path
     where
         T: AsRef<str>,
     {
         let mut copy = self.clone();
-        copy.go_to(&Path::from(other.as_ref()));
+        copy.join_str(other);
         copy
     }
 
-    pub fn go_to(&mut self, other: &Path) {
+    pub fn join(&mut self, other: &Path) {
         if other.path.starts_with('/') {
             self.path = other.path.clone();
         } else {
@@ -117,11 +192,11 @@ impl Path {
         }
     }
 
-    pub fn go_to_str<T>(&mut self, other: T)
+    pub fn join_str<T>(&mut self, other: T)
     where
         T: AsRef<str>,
     {
-        self.go_to(&Path::from(other.as_ref()));
+        self.join(&Path::from(other.as_ref()));
     }
 
     pub fn relative_to(&self, other: &Path) -> Path {
@@ -492,6 +567,12 @@ mod tests {
     }
 
     #[test]
+    fn test_basename_with_relative() {
+        let path = Path { path: "foo".to_string() };
+        assert_eq!(path.basename(), Some("foo"));
+    }
+
+    #[test]
     fn test_extname_with_extension() {
         let path = Path { path: "/usr/local/bin/test.txt".to_string() };
         assert_eq!(path.extname(), Some(".txt"));
@@ -501,6 +582,18 @@ mod tests {
     fn test_extname_with_double_extension() {
         let path = Path { path: "/usr/local/bin/test.foo.txt".to_string() };
         assert_eq!(path.extname(), Some(".txt"));
+    }
+
+    #[test]
+    fn test_extname_with_d_ts() {
+        let path = Path { path: "/usr/local/bin/foo.d.ts".to_string() };
+        assert_eq!(path.extname(), Some(".d.ts"));
+    }
+
+    #[test]
+    fn test_extname_with_d_ts_out_of_range() {
+        let path = Path { path: "x.ts".to_string() };
+        assert_eq!(path.extname(), Some(".ts"));
     }
 
     #[test]
@@ -608,5 +701,68 @@ mod tests {
 
         let deserialized: Path = serde_json::from_str(&serialized).unwrap();
         assert_eq!(path, deserialized);
+    }
+
+    #[test]
+    fn test_set_ext_with_extension() {
+        let mut path = Path { path: "/usr/local/bin/test.txt".to_string() };
+        path.set_ext(".log");
+        assert_eq!(path.as_str(), "/usr/local/bin/test.log");
+    }
+
+    #[test]
+    fn test_set_ext_without_extension() {
+        let mut path = Path { path: "/usr/local/bin/test".to_string() };
+        path.set_ext(".log");
+        assert_eq!(path.as_str(), "/usr/local/bin/test.log");
+    }
+
+    #[test]
+    fn test_set_ext_with_empty_extension() {
+        let mut path = Path { path: "/usr/local/bin/test.txt".to_string() };
+        path.set_ext("");
+        assert_eq!(path.as_str(), "/usr/local/bin/test");
+    }
+
+    #[test]
+    fn test_set_ext_with_dot_extension() {
+        let mut path = Path { path: "/usr/local/bin/test.txt".to_string() };
+        path.set_ext(".");
+        assert_eq!(path.as_str(), "/usr/local/bin/test.");
+    }
+
+    #[test]
+    fn test_set_ext_with_dot_basename() {
+        let mut path = Path { path: "/usr/local/bin/.htaccess".to_string() };
+        path.set_ext(".log");
+        assert_eq!(path.as_str(), "/usr/local/bin/.htaccess.log");
+    }
+
+    #[test]
+    fn test_set_ext_with_no_extension() {
+        let mut path = Path { path: "/usr/local/bin/".to_string() };
+        path.set_ext(".log");
+        assert_eq!(path.as_str(), "/usr/local/bin.log/");
+    }
+
+    #[test]
+    fn test_set_ext_with_d_ts() {
+        let mut path = Path { path: "/usr/local/bin/foo.d.ts".to_string() };
+        path.set_ext(".log");
+        assert_eq!(path.as_str(), "/usr/local/bin/foo.log");
+    }
+
+    #[test]
+    fn test_set_ext_with_d_ts_out_of_range() {
+        let mut path = Path { path: "x.ts".to_string() };
+        path.set_ext(".log");
+        assert_eq!(path.as_str(), "x.log");
+    }
+
+    #[test]
+    fn test_set_ext_relative() {
+        let mut path = Path { path: "test.txt".to_string() };
+        path.set_ext(".log");
+        assert_eq!(path.as_str(), "test.log");
     }
 }
