@@ -17,22 +17,26 @@ impl Path {
         Path::from("")
     }
 
-    pub fn dirname<'a>(&'a self) -> Path {
+    pub fn dirname<'a>(&'a self) -> Option<Path> {
         let mut slice_len = self.path.len();
         if self.path.ends_with('/') {
             if self.path.len() > 1 {
                 slice_len -= 1;
             } else {
-                return Path::from("/");
+                return None;
             }
         }
 
         let slice = &self.path[..slice_len];
         if let Some(last_slash) = slice.rfind('/') {
-            Path::from(&slice[..last_slash])
-        } else {
-            Path::new()
+            if last_slash > 0 {
+                return Some(Path::from(&slice[..last_slash]));
+            } else {
+                return Some(Path::from("/"));
+            }
         }
+
+        None
     }
 
     pub fn basename<'a>(&'a self) -> Option<&'a str> {
@@ -509,31 +513,37 @@ mod tests {
     #[test]
     fn test_dirname_with_extension() {
         let path = Path { path: "/usr/local/bin/test.txt".to_string() };
-        assert_eq!(path.dirname(), Path::from("/usr/local/bin"));
+        assert_eq!(path.dirname(), Some(Path::from("/usr/local/bin")));
     }
 
     #[test]
     fn test_dirname_without_extension() {
         let path = Path { path: "/usr/local/bin/test".to_string() };
-        assert_eq!(path.dirname(), Path::from("/usr/local/bin"));
+        assert_eq!(path.dirname(), Some(Path::from("/usr/local/bin")));
     }
 
     #[test]
     fn test_dirname_with_trailing_slash() {
         let path = Path { path: "/usr/local/bin/".to_string() };
-        assert_eq!(path.dirname(), Path::from("/usr/local"));
+        assert_eq!(path.dirname(), Some(Path::from("/usr/local")));
     }
 
     #[test]
     fn test_dirname_with_single_slash() {
         let path = Path { path: "/".to_string() };
-        assert_eq!(path.dirname(), Path::from("/"));
+        assert_eq!(path.dirname(), None);
+    }
+
+    #[test]
+    fn test_dirname_with_root_folder() {
+        let path = Path { path: "/usr".to_string() };
+        assert_eq!(path.dirname(), Some(Path::from("/")));
     }
 
     #[test]
     fn test_dirname_with_empty_string() {
         let path = Path { path: "".to_string() };
-        assert_eq!(path.dirname(), Path::from(""));
+        assert_eq!(path.dirname(), None);
     }
 
     #[test]
