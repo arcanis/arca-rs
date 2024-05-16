@@ -122,6 +122,30 @@ impl Path {
         self.fs_metadata().map(|m| m.is_dir()).unwrap_or(false)
     }
 
+    pub fn if_exists(&self) -> Option<Path> {
+        if self.fs_exists() {
+            Some(self.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn if_file(&self) -> Option<Path> {
+        if self.fs_is_file() {
+            Some(self.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn if_dir(&self) -> Option<Path> {
+        if self.fs_is_dir() {
+            Some(self.clone())
+        } else {
+            None
+        }
+    }
+
     pub fn without_ext(&self) -> Path {
         self.with_ext("")
     }
