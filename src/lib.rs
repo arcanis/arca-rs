@@ -146,6 +146,22 @@ impl Path {
         }
     }
 
+    pub fn fs_read(&self) -> io::Result<Vec<u8>> {
+        fs::read(&self.to_path_buf())
+    }
+
+    pub fn fs_read_text(&self) -> io::Result<String> {
+        fs::read_to_string(self.to_path_buf())
+    }
+
+    pub fn fs_write<T: AsRef<[u8]>>(&self, data: &T) -> io::Result<()> {
+        fs::write(self.to_path_buf(), data)
+    }
+
+    pub fn fs_write_text<T: AsRef<str>>(&self, text: &T) -> io::Result<()> {
+        fs::write(self.to_path_buf(), text.as_ref())
+    }
+
     pub fn without_ext(&self) -> Path {
         self.with_ext("")
     }
@@ -209,14 +225,16 @@ impl Path {
     }
 
     pub fn join(&mut self, other: &Path) {
-        if other.path.starts_with('/') {
-            self.path = other.path.clone();
-        } else {
-            if !self.path.ends_with('/') {
-                self.path.push('/');
+        if !other.path.is_empty() {
+            if self.path.is_empty() || other.is_absolute() {
+                self.path = other.path.clone();
+            } else {
+                if !self.path.ends_with('/') {
+                    self.path.push('/');
+                }
+                self.path.push_str(&other.path);
+                self.normalize()
             }
-            self.path.push_str(&other.path);
-            self.normalize()
         }
     }
 
@@ -461,6 +479,18 @@ impl<T> Trie<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_join() {
+        assert_eq!(Path::from("/usr/local").with_join(&Path::from("bin")), Path::from("/usr/local/bin"));
+        assert_eq!(Path::from("/usr/local").with_join(&Path::from("bin/")), Path::from("/usr/local/bin/"));
+        assert_eq!(Path::from("/usr/local/").with_join(&Path::from("bin")), Path::from("/usr/local/bin"));
+        assert_eq!(Path::from("/usr/local/").with_join(&Path::from("bin/")), Path::from("/usr/local/bin/"));
+        assert_eq!(Path::from("/usr/local").with_join(&Path::from("/bin")), Path::from("/bin"));
+        assert_eq!(Path::from("usr/local").with_join(&Path::from("bin")), Path::from("usr/local/bin"));
+        assert_eq!(Path::from("usr/local").with_join(&Path::from("bin/")), Path::from("usr/local/bin/"));
+        assert_eq!(Path::new().with_join(&Path::from("bin")), Path::from("bin"));
+    }
 
     #[test]
     fn test_resolve_path() {
