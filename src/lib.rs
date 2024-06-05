@@ -258,13 +258,13 @@ impl Path {
 
         let mut relative_path = vec![];
 
-        for _ in common_prefix_length..self_components.len() {
-            if self_components[common_prefix_length..].len() > 0 {
+        for _ in common_prefix_length..other_components.len() {
+            if other_components[common_prefix_length..].len() > 0 {
                 relative_path.push("..");
             }
         }
 
-        for component in other_components[common_prefix_length..].iter() {
+        for component in self_components[common_prefix_length..].iter() {
             relative_path.push(*component);
         }
 
@@ -518,42 +518,42 @@ mod tests {
     fn test_same_path() {
         let path1 = Path { path: "/home/user/docs".to_string() };
         let path2 = Path { path: "/home/user/docs".to_string() };
-        assert_eq!(path1.relative_to(&path2), Path::from(""));
+        assert_eq!(path2.relative_to(&path1), Path::from(""));
     }
 
     #[test]
     fn test_subdirectory() {
         let path1 = Path { path: "/home/user/docs".to_string() };
         let path2 = Path { path: "/home/user/docs/reports".to_string() };
-        assert_eq!(path1.relative_to(&path2), Path::from("reports"));
+        assert_eq!(path2.relative_to(&path1), Path::from("reports"));
     }
 
     #[test]
     fn test_subdirectory_trailing_slash() {
         let path1 = Path { path: "/home/user/docs/".to_string() };
         let path2 = Path { path: "/home/user/docs/reports".to_string() };
-        assert_eq!(path1.relative_to(&path2), Path::from("reports"));
+        assert_eq!(path2.relative_to(&path1), Path::from("reports"));
     }
 
     #[test]
     fn test_parent_directory() {
         let path1 = Path { path: "/home/user/docs/reports".to_string() };
         let path2 = Path { path: "/home/user/docs".to_string() };
-        assert_eq!(path1.relative_to(&path2), Path::from(".."));
+        assert_eq!(path2.relative_to(&path1), Path::from(".."));
     }
 
     #[test]
     fn test_different_directory() {
         let path1 = Path { path: "/home/user/docs".to_string() };
         let path2 = Path { path: "/home/user/music".to_string() };
-        assert_eq!(path1.relative_to(&path2), Path::from("../music"));
+        assert_eq!(path2.relative_to(&path1), Path::from("../music"));
     }
 
     #[test]
     fn test_different_root() {
         let path1 = Path { path: "/home/user/docs".to_string() };
         let path2 = Path { path: "/var/log".to_string() };
-        assert_eq!(path1.relative_to(&path2), Path::from("../../../var/log"));
+        assert_eq!(path2.relative_to(&path1), Path::from("../../../var/log"));
     }
 
     #[test]
@@ -561,7 +561,7 @@ mod tests {
     fn test_relative_path() {
         let path1 = Path { path: "/home/user/docs".to_string() };
         let path2 = Path { path: "var/log".to_string() };
-        path1.relative_to(&path2);
+        path2.relative_to(&path1);
     }
 
     #[test]
