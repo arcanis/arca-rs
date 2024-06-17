@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+use std::fs::ReadDir;
 use std::{fs, io};
 
 use radix_trie::TrieCommon;
@@ -154,12 +155,23 @@ impl Path {
         fs::read_to_string(self.to_path_buf())
     }
 
+    pub fn fs_read_dir(&self) -> io::Result<ReadDir> {
+        fs::read_dir(&self.to_path_buf())
+    }
+
     pub fn fs_write<T: AsRef<[u8]>>(&self, data: &T) -> io::Result<()> {
         fs::write(self.to_path_buf(), data)
     }
 
     pub fn fs_write_text<T: AsRef<str>>(&self, text: &T) -> io::Result<()> {
         fs::write(self.to_path_buf(), text.as_ref())
+    }
+
+    pub fn fs_rm(&self) -> io::Result<()> {
+        match self.fs_is_dir() {
+            true => fs::remove_dir_all(self.to_path_buf()),
+            false => fs::remove_file(self.to_path_buf()),
+        }
     }
 
     pub fn without_ext(&self) -> Path {
