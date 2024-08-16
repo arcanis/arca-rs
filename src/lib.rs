@@ -107,6 +107,29 @@ impl Path {
         self.path.starts_with("../") || self.path == ".."
     }
 
+    pub fn fs_create_parent(&self) -> io::Result<&Self> {
+        if let Some(parent) = self.dirname() {
+            parent.fs_create_dir_all()?;
+        }
+
+        Ok(self)
+    }
+
+    pub fn fs_create_dir_all(&self) -> io::Result<&Self> {
+        fs::create_dir_all(&self.path)?;
+        Ok(self)
+    }
+
+    pub fn fs_create_dir(&self) -> io::Result<&Self> {
+        fs::create_dir(&self.path)?;
+        Ok(self)
+    }
+
+    pub fn fs_set_permissions(&self, permissions: fs::Permissions) -> io::Result<&Self> {
+        fs::set_permissions(&self.path, permissions)?;
+        Ok(self)
+    }
+
     pub fn fs_metadata(&self) -> io::Result<fs::Metadata> {
         fs::metadata(&self.path)
     }
@@ -159,19 +182,28 @@ impl Path {
         fs::read_dir(&self.to_path_buf())
     }
 
-    pub fn fs_write<T: AsRef<[u8]>>(&self, data: &T) -> io::Result<()> {
-        fs::write(self.to_path_buf(), data)
+    pub fn fs_write<T: AsRef<[u8]>>(&self, data: T) -> io::Result<&Self> {
+        fs::write(self.to_path_buf(), data)?;
+        Ok(self)
     }
 
-    pub fn fs_write_text<T: AsRef<str>>(&self, text: &T) -> io::Result<()> {
-        fs::write(self.to_path_buf(), text.as_ref())
+    pub fn fs_write_text<T: AsRef<str>>(&self, text: T) -> io::Result<&Self> {
+        fs::write(self.to_path_buf(), text.as_ref())?;
+        Ok(self)
     }
 
-    pub fn fs_rm(&self) -> io::Result<()> {
+    pub fn fs_rename(&self, new_path: &Path) -> io::Result<&Self> {
+        fs::rename(self.to_path_buf(), new_path.to_path_buf())?;
+        Ok(self)
+    }
+
+    pub fn fs_rm(&self) -> io::Result<&Self> {
         match self.fs_is_dir() {
             true => fs::remove_dir_all(self.to_path_buf()),
             false => fs::remove_file(self.to_path_buf()),
-        }
+        }?;
+
+        Ok(self)
     }
 
     pub fn without_ext(&self) -> Path {
