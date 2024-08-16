@@ -192,6 +192,32 @@ impl Path {
         Ok(self)
     }
 
+    pub fn fs_change<T: AsRef<[u8]>>(&self, data: T, permissions: fs::Permissions) -> io::Result<&Self> {
+        let path_buf = self.to_path_buf();
+
+        let update_content = std::fs::read(&path_buf)
+            .map(|current| {
+                current.ne(data.as_ref())
+            })
+            .or_else(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => Ok(true),
+                _ => Err(err),
+            })?;
+
+        if update_content {
+            std::fs::write(&path_buf, data)?;
+        }
+
+        let update_permissions = update_content ||
+            std::fs::metadata(&path_buf)?.permissions() != permissions;
+
+        if update_permissions {
+            std::fs::set_permissions(&path_buf, permissions)?;
+        }
+
+        Ok(self)
+    }
+
     pub fn fs_rename(&self, new_path: &Path) -> io::Result<&Self> {
         fs::rename(self.to_path_buf(), new_path.to_path_buf())?;
         Ok(self)
