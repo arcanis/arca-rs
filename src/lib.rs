@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::fs::ReadDir;
 use std::{fs, io};
 
@@ -7,6 +7,7 @@ use radix_trie::TrieCommon;
 pub mod path;
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "bincode", derive(bincode_derive::Decode, bincode_derive::Encode))]
 #[cfg_attr(feature = "serde", derive(serde_derive::Serialize, serde_derive::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Path {
@@ -14,6 +15,31 @@ pub struct Path {
 }
 
 impl Path {
+    pub fn temp_dir_pattern(str: &str) -> std::io::Result<Path> {
+        let index = str.find("<>")
+            .unwrap();
+
+        let before = &str[..index];
+        let after = &str[index + 2..];
+
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+
+        let mut dir = std::env::temp_dir().to_arca();
+        let name = format!("{}{:032x}{}", before, nonce, after);
+
+        dir.join_str(name);
+        dir.fs_create_dir_all()?;
+
+        Ok(dir)
+    }
+
+    pub fn temp_dir() -> std::io::Result<Path> {
+        Self::temp_dir_pattern("temp-<>")
+    }
+
     pub fn new() -> Self {
         Path::from("")
     }
@@ -178,6 +204,10 @@ impl Path {
         fs::read_to_string(self.to_path_buf())
     }
 
+    pub fn fs_read_text_async(&self) -> io::Result<String> {
+        tokio::fs::read_to_string(self.to_path_buf())
+    }
+
     pub fn fs_read_dir(&self) -> io::Result<ReadDir> {
         fs::read_dir(&self.to_path_buf())
     }
@@ -242,7 +272,7 @@ impl Path {
         copy
     }
 
-    pub fn set_ext(&mut self, ext: &str) {
+    pub fn set_ext(&mut self, ext: &str) -> &mut Self {
         let has_trailing_slash = self.path.ends_with('/');
 
         let initial_slice = if has_trailing_slash {
@@ -277,6 +307,7 @@ impl Path {
         }
 
         self.path = copy;
+        self
     }
 
     pub fn with_join(&self, other: &Path) -> Path {
@@ -294,7 +325,7 @@ impl Path {
         copy
     }
 
-    pub fn join(&mut self, other: &Path) {
+    pub fn join(&mut self, other: &Path) -> &mut Self {
         if !other.path.is_empty() {
             if self.path.is_empty() || other.is_absolute() {
                 self.path = other.path.clone();
@@ -303,20 +334,27 @@ impl Path {
                     self.path.push('/');
                 }
                 self.path.push_str(&other.path);
-                self.normalize()
+                self.normalize();
             }
         }
+
+        self
     }
 
-    pub fn join_str<T>(&mut self, other: T)
+    pub fn join_str<T>(&mut self, other: T) -> &mut Self
     where
         T: AsRef<str>,
     {
-        self.join(&Path::from(other.as_ref()));
+        self.join(&Path::from(other.as_ref()))
+    }
+
+    pub fn contains(&self, other: &Path) -> bool {
+        other.as_str().starts_with(self.as_str()) || other == self
     }
 
     pub fn relative_to(&self, other: &Path) -> Path {
-        assert!(self.is_absolute() && other.is_absolute());
+        assert!(self.is_absolute());
+        assert!(other.is_absolute());
 
         let self_components: Vec<&str> = self.path.trim_matches('/').split('/').collect();
         let other_components: Vec<&str> = other.path.trim_matches('/').split('/').collect();
@@ -370,9 +408,9 @@ impl<T: AsRef<str>> From<T> for Path {
     }
 }
 
-impl ToString for Path {
-    fn to_string(&self) -> String {
-        self.path.clone()
+impl Display for Path {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.path)
     }
 }
 
