@@ -204,6 +204,7 @@ impl Path {
         fs::read_to_string(self.to_path_buf())
     }
 
+    #[cfg(feature = "tokio")]
     pub fn fs_read_text_async(&self) -> io::Result<String> {
         tokio::fs::read_to_string(self.to_path_buf())
     }
