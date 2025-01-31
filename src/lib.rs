@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::fs::ReadDir;
+use std::io::Read;
 use std::{fs, io};
 
 use radix_trie::TrieCommon;
@@ -200,13 +201,43 @@ impl Path {
         fs::read(&self.to_path_buf())
     }
 
+    pub fn fs_read_prealloc(&self) -> io::Result<Vec<u8>> {
+        let metadata = self.fs_metadata()?;
+
+        self.fs_read_with_size(metadata.len())
+    }
+
+    pub fn fs_read_with_size(&self, size: u64) -> io::Result<Vec<u8>> {
+        let mut data = Vec::with_capacity(size as usize);
+
+        let mut file = std::fs::File::open(&self.to_path_buf())?;
+        file.read_to_end(&mut data)?;
+
+        Ok(data)
+    }
+
     pub fn fs_read_text(&self) -> io::Result<String> {
         fs::read_to_string(self.to_path_buf())
     }
 
+    pub fn fs_read_text_prealloc(&self) -> io::Result<String> {
+        let metadata = self.fs_metadata()?;
+
+        self.fs_read_text_with_size(metadata.len())
+    }
+
+    pub fn fs_read_text_with_size(&self, size: u64) -> io::Result<String> {
+        let mut data = String::with_capacity(size as usize);
+
+        let mut file = std::fs::File::open(&self.to_path_buf())?;
+        file.read_to_string(&mut data)?;
+
+        Ok(data)
+    }
+
     #[cfg(feature = "tokio")]
-    pub fn fs_read_text_async(&self) -> io::Result<String> {
-        tokio::fs::read_to_string(self.to_path_buf())
+    pub async fn fs_read_text_async(&self) -> io::Result<String> {
+        tokio::fs::read_to_string(self.to_path_buf()).await
     }
 
     pub fn fs_read_dir(&self) -> io::Result<ReadDir> {
