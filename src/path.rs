@@ -1,7 +1,6 @@
 use path_slash::PathBufExt;
 use radix_trie::TrieCommon;
-use std::{path::{PathBuf, Path}};
-
+use std::path::{PathBuf, Path};
 
 #[derive(Debug, Default, Clone)]
 pub struct Trie<T> {

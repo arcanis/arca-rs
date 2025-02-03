@@ -7,6 +7,92 @@ use radix_trie::TrieCommon;
 
 pub mod path;
 
+pub struct PathIterator<'a> {
+    components: Vec<&'a str>,
+    front_idx: usize,
+    back_idx: usize,
+    has_trailing_slash: bool,
+}
+
+impl<'a> PathIterator<'a> {
+    pub fn new(path: &'a Path) -> Self {
+        let path_str = path.as_str();
+
+        let has_leading_slash = path_str.starts_with('/');
+        let has_trailing_slash = path_str.ends_with('/') && path_str.len() > 1;
+
+        let components_path = path_str;
+        let components_path = components_path.strip_prefix('/').unwrap_or(components_path);
+        let components_path = components_path.strip_suffix('/').unwrap_or(components_path);
+
+        let mut components = Vec::new();
+
+        if has_leading_slash {
+            components.push("");
+        }
+
+        if components_path.len() > 0 {
+            components.extend(components_path.split('/'));
+        }
+
+        let front_idx = 1;
+        let back_idx = components.len();
+
+        Self {
+            components,
+            front_idx,
+            back_idx,
+            has_trailing_slash,
+        }
+    }
+}
+
+impl<'a> Iterator for PathIterator<'a> {
+    type Item = Path;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.front_idx > self.back_idx {
+            return None;
+        }
+
+        let front_idx = self.front_idx;
+        self.front_idx += 1;
+
+        if front_idx == 1 {
+            return Some(Path::root());
+        }
+
+        let mut path
+            = self.components[0..front_idx].join("/");
+
+        if self.has_trailing_slash {
+            path.push('/');
+        }
+
+        Some(Path::from(path))
+    }
+}
+
+impl<'a> DoubleEndedIterator for PathIterator<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.front_idx > self.back_idx {
+            return None;
+        }
+
+        let back_idx = self.back_idx;
+        self.back_idx -= 1;
+
+        if back_idx == 1 {
+            return Some(Path::from("/"));
+        }
+
+        let components
+            = self.components[0..back_idx].join("/");
+
+        Some(Path::from(components))
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "bincode", derive(bincode_derive::Decode, bincode_derive::Encode))]
 #[cfg_attr(feature = "serde", derive(serde_derive::Serialize, serde_derive::Deserialize))]
@@ -41,8 +127,33 @@ impl Path {
         Self::temp_dir_pattern("temp-<>")
     }
 
+    pub fn current_exe() -> std::io::Result<Path> {
+        Ok(std::env::current_exe()?.to_arca())
+    }
+
+    pub fn current_dir() -> std::io::Result<Path> {
+        Ok(std::env::current_dir()?.to_arca())
+    }
+
+    pub fn home_dir() -> Result<Path, std::env::VarError> {
+        Ok(Path::from(std::env::var("HOME")?))
+    }
+
+    /** @deprecated Prefer Path::empty() */
     pub fn new() -> Self {
-        Path::from("")
+        Path {path: "".to_string()}
+    }
+
+    pub fn empty() -> Self {
+        Path {path: "".to_string()}
+    }
+
+    pub fn root() -> Self {
+        Path {path: "/".to_string()}
+    }
+
+    pub fn iter_path(&self) -> PathIterator {
+        PathIterator::new(self)
     }
 
     pub fn dirname<'a>(&'a self) -> Option<Path> {
@@ -968,5 +1079,52 @@ mod tests {
         let mut path = Path { path: "test.txt".to_string() };
         path.set_ext(".log");
         assert_eq!(path.as_str(), "test.log");
+    }
+
+    #[test]
+    fn test_iter_root() {
+        let path = Path::root();
+        let mut iter = path.iter_path();
+
+        assert_eq!(iter.next(), Some(Path::from("/")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_iter_path() {
+        let path = Path::from("/usr/local/bin/test.txt");
+        let mut iter = path.iter_path();
+
+        assert_eq!(iter.next(), Some(Path::from("/")));
+        assert_eq!(iter.next(), Some(Path::from("/usr")));
+        assert_eq!(iter.next(), Some(Path::from("/usr/local")));
+        assert_eq!(iter.next(), Some(Path::from("/usr/local/bin")));
+        assert_eq!(iter.next(), Some(Path::from("/usr/local/bin/test.txt")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_iter_trailing() {
+        let path = Path::from("/usr/local/bin/");
+        let mut iter = path.iter_path();
+
+        assert_eq!(iter.next(), Some(Path::from("/")));
+        assert_eq!(iter.next(), Some(Path::from("/usr/")));
+        assert_eq!(iter.next(), Some(Path::from("/usr/local/")));
+        assert_eq!(iter.next(), Some(Path::from("/usr/local/bin/")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_iter_path_rev() {
+        let path = Path::from("/usr/local/bin/test.txt");
+        let mut iter = path.iter_path().rev();
+
+        assert_eq!(iter.next(), Some(Path::from("/usr/local/bin/test.txt")));
+        assert_eq!(iter.next(), Some(Path::from("/usr/local/bin")));
+        assert_eq!(iter.next(), Some(Path::from("/usr/local")));
+        assert_eq!(iter.next(), Some(Path::from("/usr")));
+        assert_eq!(iter.next(), Some(Path::from("/")));
+        assert_eq!(iter.next(), None);
     }
 }
