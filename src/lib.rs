@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::fs::ReadDir;
 use std::io::Read;
+use std::str::FromStr;
 use std::{fs, io};
 
 use radix_trie::TrieCommon;
@@ -540,6 +541,14 @@ impl Debug for Path {
 impl Default for Path {
     fn default() -> Self {
         Path::new()
+    }
+}
+
+impl FromStr for Path {
+    type Err = std::io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Path::from(s))
     }
 }
 
