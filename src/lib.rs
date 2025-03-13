@@ -8,6 +8,20 @@ use radix_trie::TrieCommon;
 
 pub mod path;
 
+pub trait OkMissing<T, E> {
+    fn ok_missing(self) -> Result<Option<T>, E>;
+}
+
+impl<T> OkMissing<T, std::io::Error> for Result<T, std::io::Error> {
+    fn ok_missing(self) -> Result<Option<T>, std::io::Error> {
+        match self {
+            Ok(value) => Ok(Some(value)),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+}
+
 pub struct PathIterator<'a> {
     components: Vec<&'a str>,
     front_idx: usize,
