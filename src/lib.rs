@@ -542,8 +542,10 @@ impl Path {
         assert!(self.is_absolute());
         assert!(other.is_absolute());
 
-        let self_components: Vec<&str> = self.path.trim_matches('/').split('/').collect();
-        let other_components: Vec<&str> = other.path.trim_matches('/').split('/').collect();
+        let ends_with_slash = self.path.ends_with('/');
+
+        let self_components: Vec<&str> = self.path.trim_end_matches('/').split('/').collect();
+        let other_components: Vec<&str> = other.path.trim_end_matches('/').split('/').collect();
 
         let common_prefix_length = self_components.iter()
             .zip(other_components.iter())
@@ -560,6 +562,10 @@ impl Path {
 
         for component in self_components[common_prefix_length..].iter() {
             relative_path.push(*component);
+        }
+
+        if ends_with_slash {
+            relative_path.push("");
         }
 
         if relative_path.is_empty() {
@@ -835,6 +841,13 @@ mod tests {
         let path1 = Path { path: "/home/user/docs/".to_string() };
         let path2 = Path { path: "/home/user/docs/reports".to_string() };
         assert_eq!(path2.relative_to(&path1), Path::from("reports"));
+    }
+
+    #[test]
+    fn test_subdirectory_trailing_slash_subject() {
+        let path1 = Path { path: "/home/user/docs".to_string() };
+        let path2 = Path { path: "/home/user/docs/reports/".to_string() };
+        assert_eq!(path2.relative_to(&path1), Path::from("reports/"));
     }
 
     #[test]
@@ -1178,4 +1191,36 @@ mod tests {
         assert_eq!(iter.next(), Some(Path::from("/")));
         assert_eq!(iter.next(), None);
     }
+
+    #[test]
+    fn test_relative_to_root() {
+        let root = Path { path: "/".to_string() };
+        
+        // Test single file at root
+        let path1 = Path { path: "/file.txt".to_string() };
+        assert_eq!(path1.relative_to(&root), Path::from("file.txt"));
+        
+        // Test directory at root
+        let path2 = Path { path: "/usr".to_string() };
+        assert_eq!(path2.relative_to(&root), Path::from("usr"));
+        
+        // Test nested path
+        let path3 = Path { path: "/usr/local/bin".to_string() };
+        assert_eq!(path3.relative_to(&root), Path::from("usr/local/bin"));
+        
+        // Test path with trailing slash
+        let path4 = Path { path: "/usr/local/".to_string() };
+        assert_eq!(path4.relative_to(&root), Path::from("usr/local/"));
+        
+        // Root relative to root should be empty path
+        assert_eq!(root.relative_to(&root), Path::from("."));
+    }
+
+    #[test]
+    fn test_relative_to_root_subject() {
+        let path1 = Path { path: "/usr/local/bin".to_string() };
+        assert_eq!(Path::root().relative_to(&path1), Path::from("../../../"));
+    }
+    
 }
+
